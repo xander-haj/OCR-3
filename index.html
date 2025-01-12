@@ -141,8 +141,14 @@
         let currentResolution = { width: 1280, height: 720 };
 
         async function getCameras() {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            cameras = devices.filter(device => device.kind === 'videoinput');
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                cameras = devices.filter(device => device.kind === 'videoinput');
+                if (cameras.length === 0) throw new Error('No cameras found');
+            } catch (error) {
+                console.error('Error fetching cameras:', error);
+                alert('Unable to detect cameras. Ensure permissions are granted and try again.');
+            }
         }
 
         async function startCameraStream(cameraId = null) {
@@ -177,9 +183,9 @@
             cameras.forEach(camera => {
                 const button = document.createElement('button');
                 button.textContent = camera.label || `Camera ${camera.deviceId}`;
-                button.onclick = () => {
+                button.onclick = async () => {
                     currentCamera = camera.deviceId;
-                    startCameraStream(camera.deviceId);
+                    await startCameraStream(camera.deviceId);
                     cameraDropdown.style.display = 'none';
                 };
                 cameraDropdown.appendChild(button);
@@ -196,9 +202,9 @@
             resolutions.forEach(res => {
                 const button = document.createElement('button');
                 button.textContent = `${res.width} x ${res.height}`;
-                button.onclick = () => {
+                button.onclick = async () => {
                     currentResolution = res;
-                    startCameraStream(currentCamera);
+                    await startCameraStream(currentCamera);
                     resolutionDropdown.style.display = 'none';
                 };
                 resolutionDropdown.appendChild(button);
@@ -221,10 +227,15 @@
         }
 
         document.addEventListener('DOMContentLoaded', async () => {
-            await getCameras();
-            populateCameraDropdown();
-            populateResolutionDropdown();
-            startCameraStream();
+            try {
+                await getCameras();
+                populateCameraDropdown();
+                populateResolutionDropdown();
+                await startCameraStream();
+            } catch (error) {
+                console.error('Initialization error:', error);
+                alert('Failed to initialize the application. Please check permissions and reload the page.');
+            }
         });
     </script>
 </body>

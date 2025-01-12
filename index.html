@@ -73,6 +73,34 @@
             color: white;
             font-size: 14px;
         }
+
+        .dropdown-menu {
+            background-color: #1f1f1f;
+            color: white;
+            border-radius: 10px;
+            padding: 10px;
+            position: absolute;
+            bottom: 60px;
+            display: none;
+            flex-direction: column;
+            gap: 5px;
+            z-index: 10;
+        }
+
+        .dropdown-menu button {
+            background-color: #333333;
+            color: white;
+            border: none;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 14px;
+            cursor: pointer;
+            text-align: left;
+        }
+
+        .dropdown-menu button:hover {
+            background-color: #444444;
+        }
     </style>
 </head>
 <body>
@@ -83,8 +111,14 @@
         <!-- Floating controls for camera and resolution selection -->
         <div class="controls-container">
             <div class="controls-carousel">
-                <button id="switchCamera" class="control-button">Camera</button>
-                <button id="changeResolution" class="control-button">Resolution</button>
+                <div>
+                    <button id="switchCamera" class="control-button">Camera</button>
+                    <div id="cameraDropdown" class="dropdown-menu"></div>
+                </div>
+                <div>
+                    <button id="changeResolution" class="control-button">Resolution</button>
+                    <div id="resolutionDropdown" class="dropdown-menu"></div>
+                </div>
             </div>
         </div>
 
@@ -98,39 +132,39 @@
         const fpsCounter = document.getElementById('fpsCounter');
         const switchCameraButton = document.getElementById('switchCamera');
         const changeResolutionButton = document.getElementById('changeResolution');
+        const cameraDropdown = document.getElementById('cameraDropdown');
+        const resolutionDropdown = document.getElementById('resolutionDropdown');
 
         let videoPlayer;
-        let currentCamera = 'user'; // Default to front camera
-        let currentResolution = { width: 1280, height: 720 }; // Default to 720p
+        let cameras = [];
+        let currentCamera = null;
+        let currentResolution = { width: 1280, height: 720 };
 
-        // Initialize Video.js player
-        function initVideoJS(stream) {
-            if (videoPlayer) {
-                videoPlayer.dispose();
-            }
-
-            videoPlayer = videojs(videoElement, {
-                controls: false,
-                autoplay: true,
-                fluid: true,
-            });
-
-            videoPlayer.srcObject = stream;
+        async function getCameras() {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            cameras = devices.filter(device => device.kind === 'videoinput');
         }
 
-        // Get user media stream
-        async function startCameraStream() {
+        async function startCameraStream(cameraId = null) {
             try {
                 const constraints = {
                     video: {
-                        facingMode: currentCamera,
+                        deviceId: cameraId ? { exact: cameraId } : undefined,
                         width: currentResolution.width,
                         height: currentResolution.height,
                     }
                 };
 
                 const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                initVideoJS(stream);
+                if (videoPlayer) {
+                    videoPlayer.dispose();
+                }
+                videoPlayer = videojs(videoElement, {
+                    controls: false,
+                    autoplay: true,
+                    fluid: true,
+                });
+                videoPlayer.srcObject = stream;
                 measureFPS(stream);
             } catch (error) {
                 console.error('Error accessing camera:', error);
@@ -138,29 +172,47 @@
             }
         }
 
-        // Switch between front and back cameras
-        switchCameraButton.addEventListener('click', () => {
-            currentCamera = currentCamera === 'user' ? 'environment' : 'user';
-            startCameraStream();
-        });
+        function populateCameraDropdown() {
+            cameraDropdown.innerHTML = '';
+            cameras.forEach(camera => {
+                const button = document.createElement('button');
+                button.textContent = camera.label || `Camera ${camera.deviceId}`;
+                button.onclick = () => {
+                    currentCamera = camera.deviceId;
+                    startCameraStream(camera.deviceId);
+                    cameraDropdown.style.display = 'none';
+                };
+                cameraDropdown.appendChild(button);
+            });
+        }
 
-        // Change resolution between predefined options
-        changeResolutionButton.addEventListener('click', () => {
+        function populateResolutionDropdown() {
             const resolutions = [
                 { width: 1280, height: 720 },
                 { width: 1920, height: 1080 },
                 { width: 3840, height: 2160 },
             ];
-            const currentIndex = resolutions.findIndex(
-                (res) => res.width === currentResolution.width && res.height === currentResolution.height
-            );
+            resolutionDropdown.innerHTML = '';
+            resolutions.forEach(res => {
+                const button = document.createElement('button');
+                button.textContent = `${res.width} x ${res.height}`;
+                button.onclick = () => {
+                    currentResolution = res;
+                    startCameraStream(currentCamera);
+                    resolutionDropdown.style.display = 'none';
+                };
+                resolutionDropdown.appendChild(button);
+            });
+        }
 
-            const nextIndex = (currentIndex + 1) % resolutions.length;
-            currentResolution = resolutions[nextIndex];
-            startCameraStream();
+        switchCameraButton.addEventListener('click', () => {
+            cameraDropdown.style.display = cameraDropdown.style.display === 'flex' ? 'none' : 'flex';
         });
 
-        // Measure FPS
+        changeResolutionButton.addEventListener('click', () => {
+            resolutionDropdown.style.display = resolutionDropdown.style.display === 'flex' ? 'none' : 'flex';
+        });
+
         function measureFPS(stream) {
             const videoTrack = stream.getVideoTracks()[0];
             const settings = videoTrack.getSettings();
@@ -168,29 +220,11 @@
             fpsCounter.textContent = `FPS: ${frameRate}`;
         }
 
-        // Request camera permissions on page load
         document.addEventListener('DOMContentLoaded', async () => {
-            if (navigator.permissions) {
-                const cameraPermission = await navigator.permissions.query({ name: 'camera' });
-
-                if (cameraPermission.state === 'granted') {
-                    startCameraStream();
-                } else if (cameraPermission.state === 'prompt' || cameraPermission.state === 'denied') {
-                    alert('Camera permissions are required. After granting permissions, the page will reload.');
-
-                    // Try requesting permissions explicitly
-                    try {
-                        await navigator.mediaDevices.getUserMedia({ video: true });
-                        alert('Permissions granted! Reloading the page to start the camera.');
-                        location.reload();
-                    } catch (error) {
-                        console.error('User denied camera permissions:', error);
-                        alert('Camera permissions are required to use this application.');
-                    }
-                }
-            } else {
-                startCameraStream();
-            }
+            await getCameras();
+            populateCameraDropdown();
+            populateResolutionDropdown();
+            startCameraStream();
         });
     </script>
 </body>

@@ -48,13 +48,16 @@
     }
     
     /* Video container */
-    #camera-stream {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+   #camera-stream {
+      position: fixed; /* Ensures the video stays in place during scroll */
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover; /* Maintains aspect ratio and fills the screen */
       background-color: black;
     }
+
 
     
     /* Controls styling */
@@ -234,7 +237,9 @@
   <div id="fps-counter">FPS: --</div>
   
   <!-- Video Stream -->
-  <video id="camera-stream" class="video-js vjs-default-skin" autoplay muted playsinline></video>
+  <!-- Video Stream -->
+  <video id="camera-stream" class="video-js vjs-default-skin vjs-no-js" autoplay muted playsinline></video>
+
   
   <!-- Controls -->
   <div class="controls">
@@ -286,6 +291,27 @@
     const modalClose = document.getElementById('modal-close');
     const modalMessage = document.getElementById('modal-message');
     const modalOptions = document.getElementById('modal-options');
+
+    // Initialize Video.js with minimal configuration
+    const player = videojs('camera-stream', {
+      controls: false, // Disable default controls
+      autoplay: true,
+      muted: true,
+      fluid: true, // Responsive sizing
+      techOrder: ["html5"],
+      html5: {
+        nativeControlsForTouch: false,
+        vhs: {
+          overrideNative: true
+        }
+      }
+    });
+    
+    // Ensure Video.js does not modify the stream
+    player.ready(function() {
+      player.src({ type: 'video/webm', src: URL.createObjectURL(currentStream) });
+    });
+
     
     function showModal(message, options = []) {
       modalMessage.textContent = message;
@@ -387,7 +413,7 @@
     let debounceTimeout;
     
     // Resize video dynamically
-    function resizeVideo() {
+    /*function resizeVideo() {
       if (!videoElement.videoWidth || !videoElement.videoHeight) return;
     
       const viewportWidth = window.innerWidth;
@@ -408,7 +434,7 @@
       // Center the video
       videoElement.style.top = ${viewportHeight / 2}px;
       videoElement.style.left = ${viewportWidth / 2}px;
-    }
+    }*/
     
     // Fetch available cameras
     async function getCameras() {
@@ -440,10 +466,12 @@
           video: {
             deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
             facingMode: 'environment',
-            width: { ideal: currentResolution.width },
-            height: { ideal: currentResolution.height }
+            width: { ideal: currentResolution.width, min: 1280 },
+            height: { ideal: currentResolution.height, min: 720 },
+            frameRate: { ideal: 60, max: 60 } // Request higher frame rate for smoother video
           }
         };
+
     
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
@@ -471,11 +499,7 @@
     // Handle window resizing
     window.addEventListener('resize', resizeVideo);
     
-    // Initialize camera on page load
-    window.addEventListener('load', async () => {
-      await getCameras();
-      await startStream();
-    });
+   
 
     
     // Change Camera Functionality
@@ -533,16 +557,27 @@
     });
     
     // Automatically start the stream if permissions are already granted
+    // Consolidated load event listener
     window.addEventListener('load', async () => {
-      const permission = await navigator.permissions.query({ name: 'camera' });
-      if (permission.state === 'granted') {
-        await getCameras();
-        await startStream();
+      try {
+        const permission = await navigator.permissions.query({ name: 'camera' });
+        if (permission.state === 'granted') {
+          await getCameras();
+          await startStream();
+        } else {
+          await getCameras();
+          await startStream();
+        }
+      } catch (error) {
+        console.error('Error during initialization:', error);
+        showModal('An error occurred during initialization.');
       }
     });
     
-    // Debounce function to prevent rapid button clicks
+    
+    // Debounce function using closures for independent timeouts
     function debounce(func, delay) {
+      let debounceTimeout;
       return function(...args) {
         clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => func.apply(this, args), delay);

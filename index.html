@@ -49,11 +49,9 @@
     
     /* Video container */
     #camera-stream {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: black;
+      object-fit: cover; /* Ensure the video covers the container */
+      width: 100vw; /* Full screen width */
+      height: 100vh; /* Full screen height */
     }
 
     
@@ -425,6 +423,25 @@
     }
     
     // Start camera stream
+    const constraints = {
+      video: {
+        deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
+        facingMode: 'environment',
+        width: { min: 1280, ideal: 1920, max: 3840 },
+        height: { min: 720, ideal: 1080, max: 2160 },
+        frameRate: { ideal: currentFPS, max: 60 },
+        resizeMode: 'none', // Force the browser to avoid resizing
+        advanced: [
+          {
+            width: currentResolution.width,
+            height: currentResolution.height,
+            frameRate: currentFPS,
+            resizeMode: 'none'
+          }
+        ]
+      }
+    };
+    
     async function startStream() {
       if (isChangingStream) return;
       isChangingStream = true;
@@ -436,37 +453,22 @@
           currentStream.getTracks().forEach(track => track.stop());
         }
     
-        const constraints = {
-          video: {
-            deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
-            facingMode: 'environment',
-            width: { ideal: currentResolution.width },
-            height: { ideal: currentResolution.height }
-          }
-        };
-    
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
     
-        // Once the video metadata is loaded, resize the video
         videoElement.onloadedmetadata = () => {
           resizeVideo();
           videoElement.play();
         };
       } catch (error) {
         console.error('Error initializing video stream:', error);
-        if (error.name === 'NotAllowedError') {
-          alert('Camera access was denied. Please enable it in your browser settings.');
-        } else if (error.name === 'NotFoundError') {
-          alert('No camera device found. Please connect a camera and try again.');
-        } else {
-          alert('An unexpected error occurred while accessing the camera.');
-        }
+        alert('An error occurred while starting the video stream. Please check your camera permissions or device settings.');
       } finally {
         loadingIndicator.style.display = 'none';
         isChangingStream = false;
       }
     }
+
     
     // Handle window resizing
     window.addEventListener('resize', resizeVideo);
@@ -496,33 +498,70 @@
       showModal('Select a camera:', cameraOptions);
     }, 300));
 
-    const resolutions = [
-      { label: '1280x720', width: 1280, height: 720 },
-      { label: '1920x1080', width: 1920, height: 1080 },
-      { label: '640x480', width: 640, height: 480 }
-    ];
-    
-    // Change Resolution Functionality
-    // Change Resolution Functionality
-    document.getElementById('change-resolution').addEventListener('click', debounce(() => {
-      if (!resolutions || resolutions.length === 0) {
-        alert('No resolutions available to choose from.');
-        return;
-      }
-    
-      const resolutionOptions = resolutions.map(res => ({
-        label: `${res.label}`,
-        onClick: async () => {
-          // Set the new resolution and restart the stream
-          currentResolution = { width: res.width, height: res.height };
-          localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
-          closeModal();
-          await startStream();
+    async function getSupportedResolutions() {
+      const testConstraints = { video: true };
+      const stream = await navigator.mediaDevices.getUserMedia(testConstraints);
+      const track = stream.getVideoTracks()[0];
+      const capabilities = track.getCapabilities();
+      track.stop();
+      return capabilities;
+    }
+
+    async function populateResolutions() {
+      const capabilities = await getSupportedResolutions();
+      const resolutions = [];
+      for (let width = capabilities.width.min; width <= capabilities.width.max; width += 640) {
+        for (let height = capabilities.height.min; height <= capabilities.height.max; height += 360) {
+          resolutions.push({ width, height });
         }
-      }));
+      }
+      return resolutions;
+    }
     
-      showModal('Select a resolution:', resolutionOptions);
-    }, 300));
+    // Change Resolution Functionality
+    // Change Resolution Functionality
+    document.getElementById('change-resolution').addEventListener(
+      'click',
+      debounce(async () => {
+        const capabilities = await getSupportedResolutions(); // Fetch supported resolutions dynamically
+    
+        if (!capabilities || !capabilities.width || !capabilities.height) {
+          alert('Unable to fetch resolution options for this device.');
+          return;
+        }
+    
+        const resolutionOptions = [];
+        for (let width = capabilities.width.min; width <= capabilities.width.max; width += 640) {
+          for (let height = capabilities.height.min; height <= capabilities.height.max; height += 360) {
+            resolutionOptions.push({
+              label: `${width}x${height}`,
+              width,
+              height,
+            });
+          }
+        }
+    
+        if (resolutionOptions.length === 0) {
+          alert('No resolutions available to choose from.');
+          return;
+        }
+    
+        const options = resolutionOptions.map(res => ({
+          label: res.label,
+          onClick: async () => {
+            // Set the new resolution and restart the stream
+            currentResolution = { width: res.width, height: res.height };
+            localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
+            closeModal();
+            await startStream();
+          },
+        }));
+    
+        showModal('Select a resolution:', options);
+      }, 300)
+    );
+
+
 
     
     // Accessibility Enhancements: Keyboard navigation for modal

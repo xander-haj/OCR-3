@@ -48,7 +48,7 @@
     }
     
     /* Video container */
-   #camera-stream {
+    #camera-stream {
       position: fixed; /* Ensures the video stays in place during scroll */
       top: 0;
       left: 0;
@@ -237,10 +237,9 @@
   <div id="fps-counter">FPS: --</div>
   
   <!-- Video Stream -->
-  <!-- Video Stream -->
   <video id="camera-stream" class="video-js vjs-default-skin vjs-no-js" autoplay muted playsinline></video>
 
-  
+
   <!-- Controls -->
   <div class="controls">
     <button class="control-button" id="change-camera" aria-label="Change Camera">Change Camera</button>
@@ -309,7 +308,9 @@
     
     // Ensure Video.js does not modify the stream
     player.ready(function() {
-      player.src({ type: 'video/webm', src: URL.createObjectURL(currentStream) });
+      if (currentStream) { // Ensure currentStream is defined
+        player.src({ type: 'video/webm', src: URL.createObjectURL(currentStream) });
+      }
     });
 
     
@@ -347,7 +348,7 @@
       frameCount++;
       const now = performance.now();
       if (now - lastTime >= 1000) {
-        fpsCounter.textContent = `FPS: ${frameCount}`;
+        fpsCounter.textContent = `FPS: ${frameCount}`; // Fixed template literal
         frameCount = 0;
         lastTime = now;
       }
@@ -423,17 +424,17 @@
     
       if (videoAspectRatio > viewportAspectRatio) {
         // Video is wider than the viewport
-        videoElement.style.width = ${viewportWidth}px;
-        videoElement.style.height = ${viewportWidth / videoAspectRatio}px;
+        videoElement.style.width = `${viewportWidth}px`;
+        videoElement.style.height = `${viewportWidth / videoAspectRatio}px`;
       } else {
         // Video is taller or matches the viewport aspect ratio
-        videoElement.style.width = ${viewportHeight * videoAspectRatio}px;
-        videoElement.style.height = ${viewportHeight}px;
+        videoElement.style.width = `${viewportHeight * videoAspectRatio}px`;
+        videoElement.style.height = `${viewportHeight}px`;
       }
     
       // Center the video
-      videoElement.style.top = ${viewportHeight / 2}px;
-      videoElement.style.left = ${viewportWidth / 2}px;
+      videoElement.style.top = `${viewportHeight / 2}px`;
+      videoElement.style.left = `${viewportWidth / 2}px`;
     }*/
     
     // Fetch available cameras
@@ -471,16 +472,19 @@
             frameRate: { ideal: 60, max: 60 } // Request higher frame rate for smoother video
           }
         };
-
     
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
     
-        // Once the video metadata is loaded, resize the video
+        // Once the video metadata is loaded, play the video
         videoElement.onloadedmetadata = () => {
-          resizeVideo();
+          // resizeVideo(); // Removed since resizeVideo is commented out
           videoElement.play();
         };
+        
+        // Update Video.js player source
+        player.srcObject = currentStream; // Updated to set srcObject directly
+        player.play();
       } catch (error) {
         console.error('Error initializing video stream:', error);
         if (error.name === 'NotAllowedError') {
@@ -497,10 +501,8 @@
     }
     
     // Handle window resizing
-    window.addEventListener('resize', resizeVideo);
+    // window.addEventListener('resize', resizeVideo); // Removed since resizeVideo is commented out
     
-   
-
     
     // Change Camera Functionality
     document.getElementById('change-camera').addEventListener('click', debounce(async () => {
@@ -509,7 +511,7 @@
         return;
       }
       const cameraOptions = cameras.map((camera, index) => ({
-        label: camera.label || Camera ${index + 1},
+        label: camera.label || `Camera ${index + 1}`, // Fixed template literal
         onClick: () => {
           currentCameraIndex = index;
           localStorage.setItem('currentCameraIndex', currentCameraIndex);
@@ -519,14 +521,13 @@
       }));
       showModal('Select a camera:', cameraOptions);
     }, 300));
-
+    
     const resolutions = [
       { label: '1280x720', width: 1280, height: 720 },
       { label: '1920x1080', width: 1920, height: 1080 },
       { label: '640x480', width: 640, height: 480 }
     ];
     
-    // Change Resolution Functionality
     // Change Resolution Functionality
     document.getElementById('change-resolution').addEventListener('click', debounce(() => {
       if (!resolutions || resolutions.length === 0) {
@@ -535,7 +536,9 @@
       }
     
       const resolutionOptions = resolutions.map(res => ({
-        label: ${res.label},
+        label: res.label, // Assuming res.label is already a string like '1280x720'
+        // Alternatively, use template literals if needed:
+        // label: `${res.label}`,
         onClick: async () => {
           // Set the new resolution and restart the stream
           currentResolution = { width: res.width, height: res.height };
@@ -547,7 +550,7 @@
     
       showModal('Select a resolution:', resolutionOptions);
     }, 300));
-
+    
     
     // Accessibility Enhancements: Keyboard navigation for modal
     document.addEventListener('keydown', (event) => {
@@ -557,7 +560,6 @@
     });
     
     // Automatically start the stream if permissions are already granted
-    // Consolidated load event listener
     window.addEventListener('load', async () => {
       try {
         const permission = await navigator.permissions.query({ name: 'camera' });

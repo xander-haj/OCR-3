@@ -49,15 +49,13 @@
     
     /* Video container */
     #camera-stream {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
-      z-index: 1;
-      background: #000;
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: black;
     }
+
     
     /* Controls styling */
     .controls {
@@ -379,66 +377,106 @@
     })();
     
     // Stream Initialization
-    const videoElement = document.getElementById('camera-stream');
+   const videoElement = document.getElementById('camera-stream');
     const loadingIndicator = document.getElementById('loading-indicator');
     let currentStream = null;
     let currentCameraIndex = parseInt(localStorage.getItem('currentCameraIndex')) || 0;
     let currentResolution = JSON.parse(localStorage.getItem('currentResolution')) || { width: 1280, height: 720 };
     let cameras = [];
-    const resolutions = [
-      { label: '1280x720', width: 1280, height: 720 },
-      { label: '1920x1080', width: 1920, height: 1080 },
-      { label: '640x480', width: 640, height: 480 }
-    ];
     let isChangingStream = false;
     let debounceTimeout;
     
+    // Resize video dynamically
+    function resizeVideo() {
+      if (!videoElement.videoWidth || !videoElement.videoHeight) return;
+    
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const videoAspectRatio = videoElement.videoWidth / videoElement.videoHeight;
+      const viewportAspectRatio = viewportWidth / viewportHeight;
+    
+      if (videoAspectRatio > viewportAspectRatio) {
+        // Video is wider than the viewport
+        videoElement.style.width = `${viewportWidth}px`;
+        videoElement.style.height = `${viewportWidth / videoAspectRatio}px`;
+      } else {
+        // Video is taller or matches the viewport aspect ratio
+        videoElement.style.width = `${viewportHeight * videoAspectRatio}px`;
+        videoElement.style.height = `${viewportHeight}px`;
+      }
+    
+      // Center the video
+      videoElement.style.top = `${viewportHeight / 2}px`;
+      videoElement.style.left = `${viewportWidth / 2}px`;
+    }
+    
+    // Fetch available cameras
     async function getCameras() {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices();
         cameras = devices.filter(device => device.kind === 'videoinput');
         if (cameras.length === 0) {
-          showModal('No cameras found on this device.');
+          alert('No cameras found on this device.');
         }
       } catch (error) {
         console.error('Error enumerating devices:', error);
-        showModal('Unable to access camera devices.');
+        alert('Unable to access camera devices.');
       }
     }
     
+    // Start camera stream
     async function startStream() {
       if (isChangingStream) return;
       isChangingStream = true;
+    
       try {
         loadingIndicator.style.display = 'block';
+    
         if (currentStream) {
           currentStream.getTracks().forEach(track => track.stop());
         }
+    
         const constraints = {
           video: {
             deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
-            width: { exact: currentResolution.width },
-            height: { exact: currentResolution.height },
-            facingMode: 'environment'
+            facingMode: 'environment',
+            width: { ideal: currentResolution.width },
+            height: { ideal: currentResolution.height }
           }
         };
+    
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
-        videoElement.play();
+    
+        // Once the video metadata is loaded, resize the video
+        videoElement.onloadedmetadata = () => {
+          resizeVideo();
+          videoElement.play();
+        };
       } catch (error) {
         console.error('Error initializing video stream:', error);
         if (error.name === 'NotAllowedError') {
-          showModal('Camera access was denied. Please enable it in your browser settings.');
+          alert('Camera access was denied. Please enable it in your browser settings.');
         } else if (error.name === 'NotFoundError') {
-          showModal('No camera device found. Please connect a camera and try again.');
+          alert('No camera device found. Please connect a camera and try again.');
         } else {
-          showModal('An unexpected error occurred while accessing the camera.');
+          alert('An unexpected error occurred while accessing the camera.');
         }
       } finally {
         loadingIndicator.style.display = 'none';
         isChangingStream = false;
       }
     }
+    
+    // Handle window resizing
+    window.addEventListener('resize', resizeVideo);
+    
+    // Initialize camera on page load
+    window.addEventListener('load', async () => {
+      await getCameras();
+      await startStream();
+    });
+
     
     // Change Camera Functionality
     document.getElementById('change-camera').addEventListener('click', debounce(async () => {

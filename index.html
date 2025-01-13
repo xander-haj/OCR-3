@@ -377,7 +377,7 @@
     })();
     
     // Stream Initialization
-   const videoElement = document.getElementById('camera-stream');
+    const videoElement = document.getElementById('camera-stream');
     const loadingIndicator = document.getElementById('loading-indicator');
     let currentStream = null;
     let currentCameraIndex = parseInt(localStorage.getItem('currentCameraIndex')) || 0;
@@ -495,20 +495,35 @@
       }));
       showModal('Select a camera:', cameraOptions);
     }, 300));
+
+    const resolutions = [
+      { label: '1280x720', width: 1280, height: 720 },
+      { label: '1920x1080', width: 1920, height: 1080 },
+      { label: '640x480', width: 640, height: 480 }
+    ];
     
     // Change Resolution Functionality
+    // Change Resolution Functionality
     document.getElementById('change-resolution').addEventListener('click', debounce(() => {
-      const resolutionOptions = resolutions.map((res) => ({
-        label: res.label,
-        onClick: () => {
+      if (!resolutions || resolutions.length === 0) {
+        alert('No resolutions available to choose from.');
+        return;
+      }
+    
+      const resolutionOptions = resolutions.map(res => ({
+        label: `${res.label}`,
+        onClick: async () => {
+          // Set the new resolution and restart the stream
           currentResolution = { width: res.width, height: res.height };
           localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
           closeModal();
-          startStream();
+          await startStream();
         }
       }));
+    
       showModal('Select a resolution:', resolutionOptions);
     }, 300));
+
     
     // Accessibility Enhancements: Keyboard navigation for modal
     document.addEventListener('keydown', (event) => {

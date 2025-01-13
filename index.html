@@ -306,14 +306,7 @@
       }
     });
     
-    // Ensure Video.js does not modify the stream
-    player.ready(function() {
-      if (currentStream) { // Ensure currentStream is defined
-        player.src({ type: 'video/webm', src: URL.createObjectURL(currentStream) });
-      }
-    });
-
-    
+    // Function to show the modal
     function showModal(message, options = []) {
       modalMessage.textContent = message;
       modalOptions.innerHTML = '';
@@ -328,10 +321,12 @@
       modal.style.display = 'flex';
     }
     
+    // Function to close the modal
     function closeModal() {
       modal.style.display = 'none';
     }
     
+    // Event listeners to close the modal
     modalClose.addEventListener('click', closeModal);
     window.addEventListener('click', (event) => {
       if (event.target === modal) {
@@ -358,7 +353,7 @@
     // Start the FPS counter
     requestAnimationFrame(updateFPS);
     
-    // Camera Permissions Check
+    // Camera Permissions Check and Stream Initialization
     (async function () {
       try {
         const permissionStatus = await navigator.permissions.query({ name: 'camera' });
@@ -403,7 +398,7 @@
       }
     })();
     
-    // Stream Initialization
+    // Stream Initialization Variables
     const videoElement = document.getElementById('camera-stream');
     const loadingIndicator = document.getElementById('loading-indicator');
     let currentStream = null;
@@ -411,31 +406,6 @@
     let currentResolution = JSON.parse(localStorage.getItem('currentResolution')) || { width: 1280, height: 720 };
     let cameras = [];
     let isChangingStream = false;
-    let debounceTimeout;
-    
-    // Resize video dynamically
-    /*function resizeVideo() {
-      if (!videoElement.videoWidth || !videoElement.videoHeight) return;
-    
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-      const videoAspectRatio = videoElement.videoWidth / videoElement.videoHeight;
-      const viewportAspectRatio = viewportWidth / viewportHeight;
-    
-      if (videoAspectRatio > viewportAspectRatio) {
-        // Video is wider than the viewport
-        videoElement.style.width = `${viewportWidth}px`;
-        videoElement.style.height = `${viewportWidth / videoAspectRatio}px`;
-      } else {
-        // Video is taller or matches the viewport aspect ratio
-        videoElement.style.width = `${viewportHeight * videoAspectRatio}px`;
-        videoElement.style.height = `${viewportHeight}px`;
-      }
-    
-      // Center the video
-      videoElement.style.top = `${viewportHeight / 2}px`;
-      videoElement.style.left = `${viewportWidth / 2}px`;
-    }*/
     
     // Fetch available cameras
     async function getCameras() {
@@ -478,12 +448,10 @@
     
         // Once the video metadata is loaded, play the video
         videoElement.onloadedmetadata = () => {
-          // resizeVideo(); // Removed since resizeVideo is commented out
           videoElement.play();
         };
         
-        // Update Video.js player source
-        player.srcObject = currentStream; // Updated to set srcObject directly
+        // Play the Video.js player
         player.play();
       } catch (error) {
         console.error('Error initializing video stream:', error);
@@ -499,10 +467,6 @@
         isChangingStream = false;
       }
     }
-    
-    // Handle window resizing
-    // window.addEventListener('resize', resizeVideo); // Removed since resizeVideo is commented out
-    
     
     // Change Camera Functionality
     document.getElementById('change-camera').addEventListener('click', debounce(async () => {
@@ -522,6 +486,7 @@
       showModal('Select a camera:', cameraOptions);
     }, 300));
     
+    // Resolutions Array
     const resolutions = [
       { label: '1280x720', width: 1280, height: 720 },
       { label: '1920x1080', width: 1920, height: 1080 },
@@ -537,8 +502,6 @@
     
       const resolutionOptions = resolutions.map(res => ({
         label: res.label, // Assuming res.label is already a string like '1280x720'
-        // Alternatively, use template literals if needed:
-        // label: `${res.label}`,
         onClick: async () => {
           // Set the new resolution and restart the stream
           currentResolution = { width: res.width, height: res.height };
@@ -558,24 +521,6 @@
         closeModal();
       }
     });
-    
-    // Automatically start the stream if permissions are already granted
-    window.addEventListener('load', async () => {
-      try {
-        const permission = await navigator.permissions.query({ name: 'camera' });
-        if (permission.state === 'granted') {
-          await getCameras();
-          await startStream();
-        } else {
-          await getCameras();
-          await startStream();
-        }
-      } catch (error) {
-        console.error('Error during initialization:', error);
-        showModal('An error occurred during initialization.');
-      }
-    });
-    
     
     // Debounce function using closures for independent timeouts
     function debounce(func, delay) {

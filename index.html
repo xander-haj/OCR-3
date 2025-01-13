@@ -1,242 +1,483 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Mobile Camera Stream</title>
-    <!-- Latest Video.js CDN -->
-    <link href="https://vjs.zencdn.net/8.0.4/video-js.css" rel="stylesheet">
-    <script src="https://vjs.zencdn.net/8.0.4/video.min.js"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Camera Stream with Video.js</title>
+  
+  <!-- Include Video.js CSS without integrity and crossorigin checks -->
+  <link
+    href="https://vjs.zencdn.net/8.0.4/video-js.css"
+    rel="stylesheet"
+  >
+  
+  <!-- Dark Theme Styling -->
+  <style>
+    :root {
+      --background-color: #121212;
+      --text-color: #ffffff;
+      --button-bg: #1f1f1f;
+      --button-hover-bg: #333333;
+      --font-family: Arial, sans-serif;
+      --modal-background: rgba(0, 0, 0, 0.8);
+      --modal-content-bg: #1f1f1f;
+      --modal-text-color: #ffffff;
+      --fps-bg: rgba(0, 0, 0, 0.5);
+    }
+    
+    /* Reset and base styles */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
 
-    <!-- Additional styling for the page -->
-    <style>
-        body {
-            margin: 0;
-            padding: 0;
-            background-color: #121212;
-            color: #ffffff;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-        }
-
-        .video-container {
-            position: relative;
-            width: 100%;
-            height: 100%;
-        }
-
-        video {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .controls-container {
-            position: absolute;
-            bottom: 10px;
-            width: 100%;
-            display: flex;
-            justify-content: center;
-        }
-
-        .controls-carousel {
-            display: flex;
-            overflow-x: auto;
-            gap: 10px;
-        }
-
-        .control-button {
-            background-color: #1f1f1f;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 30px;
-            font-size: 16px;
-            cursor: pointer;
-            transition: transform 0.2s, background-color 0.2s;
-        }
-
-        .control-button:hover {
-            background-color: #333333;
-            transform: scale(1.1);
-        }
-
-        .fps-counter {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            padding: 5px;
-            color: white;
-            font-size: 14px;
-        }
-
-        .dropdown-menu {
-            background-color: #1f1f1f;
-            color: white;
-            border-radius: 10px;
-            padding: 10px;
-            position: absolute;
-            bottom: 60px;
-            display: none;
-            flex-direction: column;
-            gap: 5px;
-            z-index: 10;
-        }
-
-        .dropdown-menu button {
-            background-color: #333333;
-            color: white;
-            border: none;
-            padding: 10px;
-            border-radius: 10px;
-            font-size: 14px;
-            cursor: pointer;
-            text-align: left;
-        }
-
-        .dropdown-menu button:hover {
-            background-color: #444444;
-        }
-    </style>
+    body {
+      margin: 0;
+      background-color: var(--background-color);
+      color: var(--text-color);
+      font-family: var(--font-family);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    /* Video container */
+    #camera-stream {
+      width: 100%;
+      max-width: 800px;
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+    
+    /* Loading Indicator */
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-color);
+      background: var(--fps-bg);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      z-index: 10;
+      font-size: 18px;
+    }
+    
+    /* Controls styling */
+    .controls {
+      display: flex;
+      justify-content: center;
+      margin-top: 20px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    
+    .control-button {
+      background-color: var(--button-bg);
+      border: none;
+      border-radius: 25px;
+      color: var(--text-color);
+      padding: 10px 20px;
+      margin: 5px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      font-size: 16px;
+    }
+    
+    .control-button:hover {
+      background-color: var(--button-hover-bg);
+    }
+    
+    /* FPS Counter */
+    #fps-counter {
+      position: absolute;
+      top: 10px;
+      left: 10px;
+      color: #fff;
+      background: var(--fps-bg);
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 14px;
+    }
+    
+    /* Modal Styling */
+    .modal {
+      display: none; /* Hidden by default */
+      position: fixed; /* Stay in place */
+      z-index: 20; /* Sit on top */
+      left: 0;
+      top: 0;
+      width: 100%; /* Full width */
+      height: 100%; /* Full height */
+      overflow: auto; /* Enable scroll if needed */
+      background-color: var(--modal-background); /* Black w/ opacity */
+      justify-content: center;
+      align-items: center;
+    }
+    
+    .modal-content {
+      background-color: var(--modal-content-bg);
+      color: var(--modal-text-color);
+      padding: 20px;
+      border: 1px solid #888;
+      border-radius: 10px;
+      width: 80%;
+      max-width: 500px;
+      position: relative;
+      text-align: center;
+    }
+    
+    .close-button {
+      color: var(--modal-text-color);
+      float: right;
+      font-size: 28px;
+      font-weight: bold;
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      cursor: pointer;
+    }
+    
+    .close-button:hover,
+    .close-button:focus {
+      color: #bbb;
+      text-decoration: none;
+      cursor: pointer;
+    }
+    
+    .modal-message {
+      margin-top: 40px;
+      font-size: 18px;
+      text-align: center;
+    }
+    
+    .modal-options {
+      margin-top: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+    
+    .modal-option {
+      background-color: var(--button-bg);
+      border: none;
+      border-radius: 5px;
+      color: var(--text-color);
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: background-color 0.3s;
+      font-size: 16px;
+      width: 100%;
+      max-width: 300px;
+    }
+    
+    .modal-option:hover {
+      background-color: var(--button-hover-bg);
+    }
+    
+    /* Responsive video container */
+    @media (max-width: 600px) {
+      .control-button {
+        padding: 8px 16px;
+        margin: 3px;
+        font-size: 14px;
+      }
+      
+      .modal-content {
+        width: 90%;
+      }
+    }
+  </style>
+  
+  <!-- Video.js Library without integrity and crossorigin checks -->
+  <script
+    src="https://vjs.zencdn.net/8.0.4/video.min.js"
+    defer
+  ></script>
 </head>
 <body>
-    <div class="video-container">
-        <!-- Video.js player -->
-        <video id="cameraStream" class="video-js" autoplay muted playsinline></video>
-
-        <!-- Floating controls for camera and resolution selection -->
-        <div class="controls-container">
-            <div class="controls-carousel">
-                <div>
-                    <button id="switchCamera" class="control-button">Camera</button>
-                    <div id="cameraDropdown" class="dropdown-menu"></div>
-                </div>
-                <div>
-                    <button id="changeResolution" class="control-button">Resolution</button>
-                    <div id="resolutionDropdown" class="dropdown-menu"></div>
-                </div>
-            </div>
-        </div>
-
-        <!-- FPS counter -->
-        <div id="fpsCounter" class="fps-counter">FPS: --</div>
+  
+  <!-- Loading Indicator -->
+  <div id="loading-indicator">Initializing camera...</div>
+  
+  <!-- FPS Counter -->
+  <div id="fps-counter">FPS: --</div>
+  
+  <!-- Video Stream -->
+  <video id="camera-stream" class="video-js vjs-default-skin" autoplay muted playsinline></video>
+  
+  <!-- Controls -->
+  <div class="controls">
+    <button class="control-button" id="change-camera" aria-label="Change Camera">Change Camera</button>
+    <button class="control-button" id="change-resolution" aria-label="Change Resolution">Change Resolution</button>
+  </div>
+  
+  <!-- Modal -->
+  <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="modal-content">
+      <span class="close-button" id="modal-close" aria-label="Close Modal">&times;</span>
+      <div class="modal-message" id="modal-message">Modal Message</div>
+      <div class="modal-options" id="modal-options">
+        <!-- Dynamic Options Will Be Injected Here -->
+      </div>
     </div>
-
-    <!-- JavaScript code -->
-    <script>
-        const videoElement = document.getElementById('cameraStream');
-        const fpsCounter = document.getElementById('fpsCounter');
-        const switchCameraButton = document.getElementById('switchCamera');
-        const changeResolutionButton = document.getElementById('changeResolution');
-        const cameraDropdown = document.getElementById('cameraDropdown');
-        const resolutionDropdown = document.getElementById('resolutionDropdown');
-
-        let videoPlayer;
-        let cameras = [];
-        let currentCamera = null;
-        let currentResolution = { width: 1280, height: 720 };
-
-        async function getCameras() {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                cameras = devices.filter(device => device.kind === 'videoinput');
-                if (cameras.length === 0) throw new Error('No cameras found');
-            } catch (error) {
-                console.error('Error fetching cameras:', error);
-                alert('Unable to detect cameras. Ensure permissions are granted and try again.');
-            }
+  </div>
+  
+  <!-- JavaScript for Functionality -->
+  <script>
+    // Utility function to create elements
+    function createElement(tag, attributes = {}, ...children) {
+      const element = document.createElement(tag);
+      for (const key in attributes) {
+        if (key.startsWith('data-')) {
+          element.setAttribute(key, attributes[key]);
+        } else if (key === 'class') {
+          element.className = attributes[key];
+        } else if (key === 'style') {
+          element.style.cssText = attributes[key];
+        } else if (key.startsWith('aria-')) {
+          element.setAttribute(key, attributes[key]);
+        } else {
+          element[key] = attributes[key];
         }
-
-        async function startCameraStream(cameraId = null) {
-            try {
-                const constraints = {
-                    video: {
-                        deviceId: cameraId ? { exact: cameraId } : undefined,
-                        width: currentResolution.width,
-                        height: currentResolution.height,
-                    }
-                };
-
-                const stream = await navigator.mediaDevices.getUserMedia(constraints);
-                if (videoPlayer) {
-                    videoPlayer.dispose();
+      }
+      children.forEach(child => {
+        if (typeof child === 'string') {
+          element.appendChild(document.createTextNode(child));
+        } else {
+          element.appendChild(child);
+        }
+      });
+      return element;
+    }
+    
+    // Modal Implementation
+    const modal = document.getElementById('modal');
+    const modalClose = document.getElementById('modal-close');
+    const modalMessage = document.getElementById('modal-message');
+    const modalOptions = document.getElementById('modal-options');
+    
+    function showModal(message, options = []) {
+      modalMessage.textContent = message;
+      modalOptions.innerHTML = '';
+      options.forEach(option => {
+        const button = createElement('button', {
+          class: 'modal-option',
+          onclick: option.onClick,
+          'aria-label': option.label
+        }, option.label);
+        modalOptions.appendChild(button);
+      });
+      modal.style.display = 'flex';
+    }
+    
+    function closeModal() {
+      modal.style.display = 'none';
+    }
+    
+    modalClose.addEventListener('click', closeModal);
+    window.addEventListener('click', (event) => {
+      if (event.target === modal) {
+        closeModal();
+      }
+    });
+    
+    // FPS Counter
+    const fpsCounter = document.getElementById('fps-counter');
+    let frameCount = 0;
+    let lastTime = performance.now();
+    
+    function updateFPS() {
+      frameCount++;
+      const now = performance.now();
+      if (now - lastTime >= 1000) {
+        fpsCounter.textContent = `FPS: ${frameCount}`;
+        frameCount = 0;
+        lastTime = now;
+      }
+      requestAnimationFrame(updateFPS);
+    }
+    
+    // Start the FPS counter
+    requestAnimationFrame(updateFPS);
+    
+    // Camera Permissions Check
+    (async function () {
+      try {
+        const permissionStatus = await navigator.permissions.query({ name: 'camera' });
+        if (permissionStatus.state === 'denied') {
+          showModal('Camera access is denied. Please enable it in your browser settings.');
+        } else if (permissionStatus.state === 'prompt') {
+          await navigator.mediaDevices.getUserMedia({ video: true });
+          // Permissions granted; inform the user and refresh the page
+          showModal('Camera access granted. The page will now refresh to start the camera stream.', [
+            {
+              label: 'Continue',
+              onClick: () => {
+                closeModal();
+                location.reload();
+              }
+            }
+          ]);
+        } else if (permissionStatus.state === 'granted') {
+          // Permissions already granted; proceed with initializing the stream
+          await getCameras();
+          await startStream();
+        }
+        // Listen for permission changes
+        permissionStatus.onchange = async () => {
+          if (permissionStatus.state === 'granted') {
+            showModal('Camera access granted. The page will now refresh to start the camera stream.', [
+              {
+                label: 'Continue',
+                onClick: () => {
+                  closeModal();
+                  location.reload();
                 }
-                videoPlayer = videojs(videoElement, {
-                    controls: false,
-                    autoplay: true,
-                    fluid: true,
-                });
-                videoPlayer.srcObject = stream;
-                measureFPS(stream);
-            } catch (error) {
-                console.error('Error accessing camera:', error);
-                alert('Unable to access the camera. Please check permissions and try again.');
-            }
+              }
+            ]);
+          } else if (permissionStatus.state === 'denied') {
+            showModal('Camera access has been denied. Please enable it in your browser settings.');
+          }
+        };
+      } catch (error) {
+        console.error('Error checking camera permissions:', error);
+        showModal('An error occurred while accessing camera permissions.');
+      }
+    })();
+    
+    // Stream Initialization
+    const videoElement = document.getElementById('camera-stream');
+    const loadingIndicator = document.getElementById('loading-indicator');
+    let currentStream = null;
+    let currentCameraIndex = parseInt(localStorage.getItem('currentCameraIndex')) || 0;
+    let currentResolution = JSON.parse(localStorage.getItem('currentResolution')) || { width: 1280, height: 720 };
+    let cameras = [];
+    const resolutions = [
+      { label: '1280x720', width: 1280, height: 720 },
+      { label: '1920x1080', width: 1920, height: 1080 },
+      { label: '640x480', width: 640, height: 480 }
+    ];
+    let isChangingStream = false;
+    let debounceTimeout;
+    
+    async function getCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        cameras = devices.filter(device => device.kind === 'videoinput');
+        if (cameras.length === 0) {
+          showModal('No cameras found on this device.');
         }
-
-        function populateCameraDropdown() {
-            cameraDropdown.innerHTML = '';
-            cameras.forEach(camera => {
-                const button = document.createElement('button');
-                button.textContent = camera.label || `Camera ${camera.deviceId}`;
-                button.onclick = async () => {
-                    currentCamera = camera.deviceId;
-                    await startCameraStream(camera.deviceId);
-                    cameraDropdown.style.display = 'none';
-                };
-                cameraDropdown.appendChild(button);
-            });
+      } catch (error) {
+        console.error('Error enumerating devices:', error);
+        showModal('Unable to access camera devices.');
+      }
+    }
+    
+    async function startStream() {
+      if (isChangingStream) return;
+      isChangingStream = true;
+      try {
+        loadingIndicator.style.display = 'block';
+        if (currentStream) {
+          currentStream.getTracks().forEach(track => track.stop());
         }
-
-        function populateResolutionDropdown() {
-            const resolutions = [
-                { width: 1280, height: 720 },
-                { width: 1920, height: 1080 },
-                { width: 3840, height: 2160 },
-            ];
-            resolutionDropdown.innerHTML = '';
-            resolutions.forEach(res => {
-                const button = document.createElement('button');
-                button.textContent = `${res.width} x ${res.height}`;
-                button.onclick = async () => {
-                    currentResolution = res;
-                    await startCameraStream(currentCamera);
-                    resolutionDropdown.style.display = 'none';
-                };
-                resolutionDropdown.appendChild(button);
-            });
+        const constraints = {
+          video: {
+            deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
+            width: { exact: currentResolution.width },
+            height: { exact: currentResolution.height },
+            facingMode: 'environment'
+          }
+        };
+        currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+        videoElement.srcObject = currentStream;
+        videoElement.play();
+      } catch (error) {
+        console.error('Error initializing video stream:', error);
+        if (error.name === 'NotAllowedError') {
+          showModal('Camera access was denied. Please enable it in your browser settings.');
+        } else if (error.name === 'NotFoundError') {
+          showModal('No camera device found. Please connect a camera and try again.');
+        } else {
+          showModal('An unexpected error occurred while accessing the camera.');
         }
-
-        switchCameraButton.addEventListener('click', () => {
-            cameraDropdown.style.display = cameraDropdown.style.display === 'flex' ? 'none' : 'flex';
-        });
-
-        changeResolutionButton.addEventListener('click', () => {
-            resolutionDropdown.style.display = resolutionDropdown.style.display === 'flex' ? 'none' : 'flex';
-        });
-
-        function measureFPS(stream) {
-            const videoTrack = stream.getVideoTracks()[0];
-            const settings = videoTrack.getSettings();
-            const frameRate = settings.frameRate || 'N/A';
-            fpsCounter.textContent = `FPS: ${frameRate}`;
+      } finally {
+        loadingIndicator.style.display = 'none';
+        isChangingStream = false;
+      }
+    }
+    
+    // Change Camera Functionality
+    document.getElementById('change-camera').addEventListener('click', debounce(async () => {
+      if (cameras.length < 2) {
+        showModal('No alternative cameras available.');
+        return;
+      }
+      const cameraOptions = cameras.map((camera, index) => ({
+        label: camera.label || `Camera ${index + 1}`,
+        onClick: () => {
+          currentCameraIndex = index;
+          localStorage.setItem('currentCameraIndex', currentCameraIndex);
+          closeModal();
+          startStream();
         }
-
-        document.addEventListener('DOMContentLoaded', async () => {
-            try {
-                await getCameras();
-                populateCameraDropdown();
-                populateResolutionDropdown();
-                await startCameraStream();
-            } catch (error) {
-                console.error('Initialization error:', error);
-                alert('Failed to initialize the application. Please check permissions and reload the page.');
-            }
-        });
-    </script>
+      }));
+      showModal('Select a camera:', cameraOptions);
+    }, 300));
+    
+    // Change Resolution Functionality
+    document.getElementById('change-resolution').addEventListener('click', debounce(() => {
+      const resolutionOptions = resolutions.map((res, index) => ({
+        label: res.label,
+        onClick: () => {
+          currentResolution = { width: res.width, height: res.height };
+          localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
+          closeModal();
+          startStream();
+        }
+      }));
+      showModal('Select a resolution:', resolutionOptions);
+    }, 300));
+    
+    // Accessibility Enhancements: Keyboard navigation for modal
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && modal.style.display === 'flex') {
+        closeModal();
+      }
+    });
+    
+    // Automatically start the stream if permissions are already granted
+    window.addEventListener('load', async () => {
+      const permission = await navigator.permissions.query({ name: 'camera' });
+      if (permission.state === 'granted') {
+        await getCameras();
+        await startStream();
+      }
+    });
+    
+    // Debounce function to prevent rapid button clicks
+    function debounce(func, delay) {
+      return function(...args) {
+        clearTimeout(debounceTimeout);
+        debounceTimeout = setTimeout(() => func.apply(this, args), delay);
+      };
+    }
+    
+    // Listen for changes in camera devices (e.g., camera connected/disconnected)
+    navigator.mediaDevices.ondevicechange = async () => {
+      await getCameras();
+    };
+    
+  </script>
+  
 </body>
 </html>

@@ -48,13 +48,12 @@
     }
     
     /* Video container */
-   #camera-stream {
-      object-fit: contain; /* Center the video without scaling or cropping */
-      position: absolute; /* Ensure it's positioned absolutely */
-      top: 0; /* Align to the top */
-      left: 0; /* Align to the left */
-      width: 100%; /* Fill width */
-      height: 100%; /* Fill height */
+    #camera-stream {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background-color: black;
     }
 
     
@@ -322,7 +321,7 @@
       frameCount++;
       const now = performance.now();
       if (now - lastTime >= 1000) {
-        fpsCounter.textContent = `FPS: ${frameCount}`;
+        fpsCounter.textContent = FPS: ${frameCount};
         frameCount = 0;
         lastTime = now;
       }
@@ -398,17 +397,17 @@
     
       if (videoAspectRatio > viewportAspectRatio) {
         // Video is wider than the viewport
-        videoElement.style.width = `${viewportWidth}px`;
-        videoElement.style.height = `${viewportWidth / videoAspectRatio}px`;
+        videoElement.style.width = ${viewportWidth}px;
+        videoElement.style.height = ${viewportWidth / videoAspectRatio}px;
       } else {
         // Video is taller or matches the viewport aspect ratio
-        videoElement.style.width = `${viewportHeight * videoAspectRatio}px`;
-        videoElement.style.height = `${viewportHeight}px`;
+        videoElement.style.width = ${viewportHeight * videoAspectRatio}px;
+        videoElement.style.height = ${viewportHeight}px;
       }
     
       // Center the video
-      videoElement.style.top = `${viewportHeight / 2}px`;
-      videoElement.style.left = `${viewportWidth / 2}px`;
+      videoElement.style.top = ${viewportHeight / 2}px;
+      videoElement.style.left = ${viewportWidth / 2}px;
     }
     
     // Fetch available cameras
@@ -437,44 +436,37 @@
           currentStream.getTracks().forEach(track => track.stop());
         }
     
-        // Define constraints here to ensure all dynamic variables are initialized
         const constraints = {
           video: {
-            deviceId: cameras[currentCameraIndex]?.deviceId
-              ? { exact: cameras[currentCameraIndex].deviceId }
-              : undefined,
+            deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
             facingMode: 'environment',
-            width: { min: 1280, ideal: currentResolution.width, max: 3840 },
-            height: { min: 720, ideal: currentResolution.height, max: 2160 },
-            frameRate: { ideal: 60, max: 120 },
-            resizeMode: 'none', // Force the browser to avoid resizing
-            advanced: [
-              {
-                width: currentResolution.width,
-                height: currentResolution.height,
-                frameRate: 60,
-                resizeMode: 'none',
-              },
-            ],
-          },
+            width: { ideal: currentResolution.width },
+            height: { ideal: currentResolution.height }
+          }
         };
     
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
     
+        // Once the video metadata is loaded, resize the video
         videoElement.onloadedmetadata = () => {
           resizeVideo();
           videoElement.play();
         };
       } catch (error) {
         console.error('Error initializing video stream:', error);
-        alert('An error occurred while starting the video stream. Please check your camera permissions or device settings.');
+        if (error.name === 'NotAllowedError') {
+          alert('Camera access was denied. Please enable it in your browser settings.');
+        } else if (error.name === 'NotFoundError') {
+          alert('No camera device found. Please connect a camera and try again.');
+        } else {
+          alert('An unexpected error occurred while accessing the camera.');
+        }
       } finally {
         loadingIndicator.style.display = 'none';
         isChangingStream = false;
       }
     }
-
     
     // Handle window resizing
     window.addEventListener('resize', resizeVideo);
@@ -493,7 +485,7 @@
         return;
       }
       const cameraOptions = cameras.map((camera, index) => ({
-        label: camera.label || `Camera ${index + 1}`,
+        label: camera.label || Camera ${index + 1},
         onClick: () => {
           currentCameraIndex = index;
           localStorage.setItem('currentCameraIndex', currentCameraIndex);
@@ -504,81 +496,33 @@
       showModal('Select a camera:', cameraOptions);
     }, 300));
 
-    async function getSupportedResolutions() {
-      const testConstraints = { video: true };
-      const stream = await navigator.mediaDevices.getUserMedia(testConstraints);
-      const track = stream.getVideoTracks()[0];
-      const capabilities = track.getCapabilities();
-      track.stop();
-      return capabilities;
-    }
-
-    async function populateResolutions() {
-      const capabilities = await getSupportedResolutions();
-      const resolutions = [];
-      for (let width = capabilities.width.min; width <= capabilities.width.max; width += 640) {
-        for (let height = capabilities.height.min; height <= capabilities.height.max; height += 360) {
-          resolutions.push({ width, height });
-        }
+    const resolutions = [
+      { label: '1280x720', width: 1280, height: 720 },
+      { label: '1920x1080', width: 1920, height: 1080 },
+      { label: '640x480', width: 640, height: 480 }
+    ];
+    
+    // Change Resolution Functionality
+    // Change Resolution Functionality
+    document.getElementById('change-resolution').addEventListener('click', debounce(() => {
+      if (!resolutions || resolutions.length === 0) {
+        alert('No resolutions available to choose from.');
+        return;
       }
-      return resolutions;
-    }
     
-    // Change Resolution Functionality
-    // Change Resolution Functionality
-    document.getElementById('change-resolution').addEventListener(
-      'click',
-      debounce(async () => {
-        try {
-          const capabilities = await getSupportedResolutions(); // Fetch supported resolutions dynamically
-    
-          if (!capabilities || !capabilities.width || !capabilities.height) {
-            alert('Unable to fetch resolution options for this device.');
-            return;
-          }
-    
-          const resolutionOptions = [];
-          if (capabilities.width && capabilities.height) {
-            for (let width = capabilities.width.min; width <= capabilities.width.max; width += 640) {
-              for (let height = capabilities.height.min; height <= capabilities.height.max; height += 360) {
-                if (width / height <= 2 && height / width <= 2) { // Ensure reasonable aspect ratios
-                  resolutionOptions.push({
-                    label: `${width}x${height}`,
-                    width,
-                    height,
-                  });
-                }
-              }
-            }
-          } else {
-            alert('Device resolution capabilities are unavailable.');
-          }
-         
-          
-    
-          if (resolutionOptions.length === 0) {
-            alert('No valid resolutions available for this device.');
-            return;
-          }
-    
-          const options = resolutionOptions.map(res => ({
-            label: res.label,
-            onClick: async () => {
-              currentResolution = { width: res.width, height: res.height };
-              localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
-              closeModal();
-              await startStream();
-            },
-          }));
-    
-          showModal('Select a resolution:', options);
-        } catch (error) {
-          console.error('Error handling resolution button:', error);
-          alert('An error occurred while fetching resolutions.');
+      const resolutionOptions = resolutions.map(res => ({
+        label: ${res.label},
+        onClick: async () => {
+          // Set the new resolution and restart the stream
+          currentResolution = { width: res.width, height: res.height };
+          localStorage.setItem('currentResolution', JSON.stringify(currentResolution));
+          closeModal();
+          await startStream();
         }
-      }, 300)
-    );
-
+      }));
+    
+      showModal('Select a resolution:', resolutionOptions);
+    }, 300));
 
     
     // Accessibility Enhancements: Keyboard navigation for modal

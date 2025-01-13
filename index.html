@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Camera Stream with Video.js</title>
+  <title>Fullscreen Camera Stream</title>
   
   <!-- Include Video.js CSS without integrity and crossorigin checks -->
   <link
@@ -16,13 +16,15 @@
     :root {
       --background-color: #121212;
       --text-color: #ffffff;
-      --button-bg: #1f1f1f;
-      --button-hover-bg: #333333;
+      --button-bg: rgba(31, 31, 31, 0.8);
+      --button-hover-bg: rgba(51, 51, 51, 0.8);
       --font-family: Arial, sans-serif;
       --modal-background: rgba(0, 0, 0, 0.8);
       --modal-content-bg: #1f1f1f;
       --modal-text-color: #ffffff;
       --fps-bg: rgba(0, 0, 0, 0.5);
+      --button-font-size: 16px;
+      --button-padding: 10px 20px;
     }
     
     /* Reset and base styles */
@@ -37,46 +39,32 @@
       background-color: var(--background-color);
       color: var(--text-color);
       font-family: var(--font-family);
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
       height: 100vh;
-      position: relative;
+      width: 100vw;
       overflow: hidden;
+      position: relative;
     }
     
     /* Video container */
     #camera-stream {
-      width: 100%;
-      max-width: 800px;
-      border-radius: 10px;
-      overflow: hidden;
-      background: #000;
-    }
-    
-    /* Loading Indicator */
-    #loading-indicator {
       position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      color: var(--text-color);
-      background: var(--fps-bg);
-      padding: 20px;
-      border-radius: 10px;
-      display: none;
-      z-index: 10;
-      font-size: 18px;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      z-index: 1;
     }
     
     /* Controls styling */
     .controls {
+      position: absolute;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
       display: flex;
-      justify-content: center;
-      margin-top: 20px;
       gap: 10px;
-      flex-wrap: wrap;
+      z-index: 2;
     }
     
     .control-button {
@@ -84,11 +72,10 @@
       border: none;
       border-radius: 25px;
       color: var(--text-color);
-      padding: 10px 20px;
-      margin: 5px;
+      padding: var(--button-padding);
       cursor: pointer;
       transition: background-color 0.3s;
-      font-size: 16px;
+      font-size: var(--button-font-size);
     }
     
     .control-button:hover {
@@ -98,20 +85,36 @@
     /* FPS Counter */
     #fps-counter {
       position: absolute;
-      top: 10px;
-      left: 10px;
+      bottom: 20px;
+      left: 20px;
       color: #fff;
       background: var(--fps-bg);
       padding: 5px 10px;
       border-radius: 5px;
       font-size: 14px;
+      z-index: 2;
+    }
+    
+    /* Loading Indicator */
+    #loading-indicator {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      color: var(--text-color);
+      background: rgba(0, 0, 0, 0.7);
+      padding: 20px;
+      border-radius: 10px;
+      display: none;
+      z-index: 3;
+      font-size: 18px;
     }
     
     /* Modal Styling */
     .modal {
       display: none; /* Hidden by default */
       position: fixed; /* Stay in place */
-      z-index: 20; /* Sit on top */
+      z-index: 4; /* Sit on top */
       left: 0;
       top: 0;
       width: 100%; /* Full width */
@@ -183,11 +186,10 @@
       background-color: var(--button-hover-bg);
     }
     
-    /* Responsive video container */
+    /* Responsive adjustments */
     @media (max-width: 600px) {
       .control-button {
         padding: 8px 16px;
-        margin: 3px;
         font-size: 14px;
       }
       
@@ -436,7 +438,7 @@
     
     // Change Resolution Functionality
     document.getElementById('change-resolution').addEventListener('click', debounce(() => {
-      const resolutionOptions = resolutions.map((res, index) => ({
+      const resolutionOptions = resolutions.map((res) => ({
         label: res.label,
         onClick: () => {
           currentResolution = { width: res.width, height: res.height };

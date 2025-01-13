@@ -49,15 +49,12 @@
     
     /* Video container */
     #camera-stream {
-      position: fixed; /* Ensures the video stays in place during scroll */
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      object-fit: cover; /* Maintains aspect ratio and fills the screen */
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
       background-color: black;
     }
-
 
     
     /* Controls styling */
@@ -237,9 +234,8 @@
   <div id="fps-counter">FPS: --</div>
   
   <!-- Video Stream -->
-  <video id="camera-stream" class="video-js vjs-default-skin vjs-no-js" autoplay muted playsinline></video>
-
-
+  <video id="camera-stream" class="video-js vjs-default-skin" autoplay muted playsinline></video>
+  
   <!-- Controls -->
   <div class="controls">
     <button class="control-button" id="change-camera" aria-label="Change Camera">Change Camera</button>
@@ -290,23 +286,7 @@
     const modalClose = document.getElementById('modal-close');
     const modalMessage = document.getElementById('modal-message');
     const modalOptions = document.getElementById('modal-options');
-
-    // Initialize Video.js with minimal configuration
-    const player = videojs('camera-stream', {
-      controls: false, // Disable default controls
-      autoplay: true,
-      muted: true,
-      fluid: true, // Responsive sizing
-      techOrder: ["html5"],
-      html5: {
-        nativeControlsForTouch: false,
-        vhs: {
-          overrideNative: true
-        }
-      }
-    });
     
-    // Function to show the modal
     function showModal(message, options = []) {
       modalMessage.textContent = message;
       modalOptions.innerHTML = '';
@@ -321,12 +301,10 @@
       modal.style.display = 'flex';
     }
     
-    // Function to close the modal
     function closeModal() {
       modal.style.display = 'none';
     }
     
-    // Event listeners to close the modal
     modalClose.addEventListener('click', closeModal);
     window.addEventListener('click', (event) => {
       if (event.target === modal) {
@@ -343,7 +321,7 @@
       frameCount++;
       const now = performance.now();
       if (now - lastTime >= 1000) {
-        fpsCounter.textContent = `FPS: ${frameCount}`; // Fixed template literal
+        fpsCounter.textContent = FPS: ${frameCount};
         frameCount = 0;
         lastTime = now;
       }
@@ -353,7 +331,7 @@
     // Start the FPS counter
     requestAnimationFrame(updateFPS);
     
-    // Camera Permissions Check and Stream Initialization
+    // Camera Permissions Check
     (async function () {
       try {
         const permissionStatus = await navigator.permissions.query({ name: 'camera' });
@@ -398,7 +376,7 @@
       }
     })();
     
-    // Stream Initialization Variables
+    // Stream Initialization
     const videoElement = document.getElementById('camera-stream');
     const loadingIndicator = document.getElementById('loading-indicator');
     let currentStream = null;
@@ -406,6 +384,31 @@
     let currentResolution = JSON.parse(localStorage.getItem('currentResolution')) || { width: 1280, height: 720 };
     let cameras = [];
     let isChangingStream = false;
+    let debounceTimeout;
+    
+    // Resize video dynamically
+    function resizeVideo() {
+      if (!videoElement.videoWidth || !videoElement.videoHeight) return;
+    
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+      const videoAspectRatio = videoElement.videoWidth / videoElement.videoHeight;
+      const viewportAspectRatio = viewportWidth / viewportHeight;
+    
+      if (videoAspectRatio > viewportAspectRatio) {
+        // Video is wider than the viewport
+        videoElement.style.width = ${viewportWidth}px;
+        videoElement.style.height = ${viewportWidth / videoAspectRatio}px;
+      } else {
+        // Video is taller or matches the viewport aspect ratio
+        videoElement.style.width = ${viewportHeight * videoAspectRatio}px;
+        videoElement.style.height = ${viewportHeight}px;
+      }
+    
+      // Center the video
+      videoElement.style.top = ${viewportHeight / 2}px;
+      videoElement.style.left = ${viewportWidth / 2}px;
+    }
     
     // Fetch available cameras
     async function getCameras() {
@@ -422,7 +425,7 @@
     }
     
     // Start camera stream
-    async function startStream() {
+   async function startStream() {
       if (isChangingStream) return;
       isChangingStream = true;
     
@@ -433,40 +436,59 @@
           currentStream.getTracks().forEach(track => track.stop());
         }
     
+        // New constraints optimized for Android
         const constraints = {
           video: {
-            deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
-            facingMode: 'environment',
-            width: { ideal: currentResolution.width, min: 1280 },
-            height: { ideal: currentResolution.height, min: 720 },
-            frameRate: { ideal: 60, max: 60 } // Request higher frame rate for smoother video
+            deviceId: cameras[currentCameraIndex]?.deviceId
+              ? { exact: cameras[currentCameraIndex].deviceId }
+              : undefined,
+            facingMode: { ideal: 'environment' },
+            width: {
+              min: 640,         // Guarantee some minimum
+              ideal: 1920,      // Request full HD by default
+              max: 3840         // Let high-end devices go up to 4K if supported
+            },
+            height: {
+              min: 480,
+              ideal: 1080,
+              max: 2160
+            },
+            frameRate: {
+              ideal: 30,
+              max: 60
+            },
+            // Advanced constraints can help some Android devices, but may be ignored by others
+            advanced: [
+              { focusMode: 'continuous' }
+            ]
           }
         };
     
         currentStream = await navigator.mediaDevices.getUserMedia(constraints);
         videoElement.srcObject = currentStream;
     
-        // Once the video metadata is loaded, play the video
         videoElement.onloadedmetadata = () => {
+          resizeVideo();
           videoElement.play();
         };
-        
-        // Play the Video.js player
-        player.play();
       } catch (error) {
-        console.error('Error initializing video stream:', error);
-        if (error.name === 'NotAllowedError') {
-          alert('Camera access was denied. Please enable it in your browser settings.');
-        } else if (error.name === 'NotFoundError') {
-          alert('No camera device found. Please connect a camera and try again.');
-        } else {
-          alert('An unexpected error occurred while accessing the camera.');
-        }
+        // ... error handling ...
       } finally {
         loadingIndicator.style.display = 'none';
         isChangingStream = false;
       }
     }
+
+    
+    // Handle window resizing
+    window.addEventListener('resize', resizeVideo);
+    
+    // Initialize camera on page load
+    window.addEventListener('load', async () => {
+      await getCameras();
+      await startStream();
+    });
+
     
     // Change Camera Functionality
     document.getElementById('change-camera').addEventListener('click', debounce(async () => {
@@ -475,7 +497,7 @@
         return;
       }
       const cameraOptions = cameras.map((camera, index) => ({
-        label: camera.label || `Camera ${index + 1}`, // Fixed template literal
+        label: camera.label || Camera ${index + 1},
         onClick: () => {
           currentCameraIndex = index;
           localStorage.setItem('currentCameraIndex', currentCameraIndex);
@@ -485,14 +507,16 @@
       }));
       showModal('Select a camera:', cameraOptions);
     }, 300));
-    
-    // Resolutions Array
+
     const resolutions = [
-      { label: '1280x720', width: 1280, height: 720 },
+      { label: '1280x720',  width: 1280, height: 720 },
       { label: '1920x1080', width: 1920, height: 1080 },
-      { label: '640x480', width: 640, height: 480 }
+      { label: '3840x2160 (4K)', width: 3840, height: 2160 }, // New high-res option
+      { label: '640x480',   width: 640,  height: 480 }
     ];
+
     
+    // Change Resolution Functionality
     // Change Resolution Functionality
     document.getElementById('change-resolution').addEventListener('click', debounce(() => {
       if (!resolutions || resolutions.length === 0) {
@@ -501,7 +525,7 @@
       }
     
       const resolutionOptions = resolutions.map(res => ({
-        label: res.label, // Assuming res.label is already a string like '1280x720'
+        label: ${res.label},
         onClick: async () => {
           // Set the new resolution and restart the stream
           currentResolution = { width: res.width, height: res.height };
@@ -513,7 +537,7 @@
     
       showModal('Select a resolution:', resolutionOptions);
     }, 300));
-    
+
     
     // Accessibility Enhancements: Keyboard navigation for modal
     document.addEventListener('keydown', (event) => {
@@ -522,9 +546,17 @@
       }
     });
     
-    // Debounce function using closures for independent timeouts
+    // Automatically start the stream if permissions are already granted
+    window.addEventListener('load', async () => {
+      const permission = await navigator.permissions.query({ name: 'camera' });
+      if (permission.state === 'granted') {
+        await getCameras();
+        await startStream();
+      }
+    });
+    
+    // Debounce function to prevent rapid button clicks
     function debounce(func, delay) {
-      let debounceTimeout;
       return function(...args) {
         clearTimeout(debounceTimeout);
         debounceTimeout = setTimeout(() => func.apply(this, args), delay);

@@ -235,8 +235,8 @@
   <!-- Modal -->
   <div id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
     <div class="modal-content">
-      <span class="close-button" id="modal-close" aria-label="Close Modal">&times;</span>
-      <div class="modal-message" id="modal-message">Modal Message</div>
+      <button class="close-button" id="modal-close" aria-label="Close Modal">&times;</button>
+      <div class="modal-message" id="modal-message"></div>
       <div class="modal-options" id="modal-options">
         <!-- Dynamic Options Will Be Injected Here -->
       </div>
@@ -290,6 +290,10 @@
         const modalOptions = document.getElementById('modal-options');
 
         const show = (message, options = []) => {
+          if (!message) {
+            console.error('Modal message is required.');
+            return;
+          }
           modalMessage.textContent = message;
           modalOptions.innerHTML = '';
           options.forEach(option => {
@@ -499,16 +503,21 @@
             if (permissionStatus.state === 'denied') {
               Modal.show('Camera access is denied. Please enable it in your browser settings.');
             } else if (permissionStatus.state === 'prompt') {
-              await navigator.mediaDevices.getUserMedia({ video: true });
-              Modal.show('Camera access granted. The page will now refresh to start the camera stream.', [
-                {
-                  label: 'Continue',
-                  onClick: () => {
-                    Modal.close();
-                    location.reload();
+              try {
+                await navigator.mediaDevices.getUserMedia({ video: true });
+                Modal.show('Camera access granted. The page will now refresh to start the camera stream.', [
+                  {
+                    label: 'Continue',
+                    onClick: () => {
+                      Modal.close();
+                      location.reload();
+                    }
                   }
-                }
-              ]);
+                ]);
+              } catch (error) {
+                console.error('User denied camera access:', error);
+                Modal.show('Camera access is required to use this application.');
+              }
             } else if (permissionStatus.state === 'granted') {
               await getCameras();
               await startStream();

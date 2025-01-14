@@ -416,7 +416,8 @@
                 deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
                 facingMode: 'environment',
                 width: { ideal: currentResolution.width },
-                height: { ideal: currentResolution.height }
+                height: { ideal: currentResolution.height },
+                frameRate: { ideal: 120, max: 120 } // Request 120 FPS
               }
             };
             

@@ -375,12 +375,25 @@
         let cameras = [];
         let isChangingStream = false;
         let debounceTimeout;
+        let player = null;
         
         const resolutions = [
           { label: '1280x720', width: 1280, height: 720 },
           { label: '1920x1080', width: 1920, height: 1080 },
           { label: '640x480', width: 640, height: 480 }
         ];
+        
+        const initializeVideoJS = () => {
+          if (player) {
+            player.dispose();
+          }
+          player = videojs('camera-stream', {
+            autoplay: true,
+            muted: true,
+            controls: false,
+            fluid: true
+          });
+        };
         
         const resizeVideo = () => {
           // Let the video element handle sizing with object-fit: cover
@@ -400,6 +413,36 @@
           }
         };
         
+        const getSupportedResolutions = async () => {
+          const supportedResolutions = [];
+          for (const res of resolutions) {
+            try {
+              const testConstraints = {
+                video: {
+                  deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
+                  facingMode: 'environment',
+                  width: { exact: res.width },
+                  height: { exact: res.height },
+                  frameRate: { exact: 60 }
+                }
+              };
+              const testStream = await navigator.mediaDevices.getUserMedia(testConstraints);
+              supportedResolutions.push(res);
+              testStream.getTracks().forEach(track => track.stop());
+            } catch (e) {
+              console.warn(`Resolution ${res.label} not supported.`);
+            }
+          }
+          return supportedResolutions;
+        };
+        
+        const displayStreamSettings = (settings) => {
+          const message = `Current Resolution: ${settings.width}x${settings.height}, FPS: ${settings.frameRate}`;
+          Modal.show(message, [
+            { label: 'OK', onClick: Modal.close }
+          ]);
+        };
+        
         const startStream = async () => {
           if (isChangingStream) return;
           isChangingStream = true;
@@ -408,6 +451,7 @@
             loadingIndicator.style.display = 'block';
             
             if (currentStream) {
+              console.log('Stopping previous stream tracks.');
               currentStream.getTracks().forEach(track => track.stop());
             }
             
@@ -415,27 +459,47 @@
               video: {
                 deviceId: cameras[currentCameraIndex]?.deviceId ? { exact: cameras[currentCameraIndex].deviceId } : undefined,
                 facingMode: 'environment',
-                width: { ideal: currentResolution.width },
-                height: { ideal: currentResolution.height },
-                frameRate: { ideal: 120, max: 120 } // Request 120 FPS
+                width: { exact: currentResolution.width },
+                height: { exact: currentResolution.height },
+                frameRate: { exact: 60 } // Adjusted frame rate
               }
             };
             
+            console.log('Requesting media with constraints:', constraints);
             currentStream = await navigator.mediaDevices.getUserMedia(constraints);
-            videoElement.srcObject = currentStream;
             
-            videoElement.onloadedmetadata = () => {
-              videoElement.play();
-              resizeVideo();
-            };
+            // Initialize Video.js
+            initializeVideoJS();
+            player.srcObject = currentStream;
+            player.play();
+            
+            // Verify and log actual settings
+            const videoTrack = currentStream.getVideoTracks()[0];
+            const settings = videoTrack.getSettings();
+            console.log(`Actual resolution: ${settings.width}x${settings.height}, FPS: ${settings.frameRate}`);
+            
+            // Display actual settings to user
+            displayStreamSettings(settings);
+            
+            if (settings.width !== currentResolution.width || settings.height !== currentResolution.height) {
+              Modal.show(`Requested resolution ${currentResolution.width}x${currentResolution.height} not supported. Using ${settings.width}x${settings.height} instead.`, [
+                { label: 'OK', onClick: Modal.close }
+              ]);
+            }
           } catch (error) {
             console.error('Error initializing video stream:', error);
             if (error.name === 'NotAllowedError') {
-              alert('Camera access was denied. Please enable it in your browser settings.');
+              Modal.show('Camera access was denied. Please enable it in your browser settings.', [
+                { label: 'OK', onClick: Modal.close }
+              ]);
             } else if (error.name === 'NotFoundError') {
-              alert('No camera device found. Please connect a camera and try again.');
+              Modal.show('No camera device found. Please connect a camera and try again.', [
+                { label: 'OK', onClick: Modal.close }
+              ]);
             } else {
-              alert('An unexpected error occurred while accessing the camera.');
+              Modal.show('An unexpected error occurred while accessing the camera.', [
+                { label: 'OK', onClick: Modal.close }
+              ]);
             }
           } finally {
             loadingIndicator.style.display = 'none';
@@ -462,13 +526,14 @@
           Modal.show('Select a camera:', cameraOptions);
         };
         
-        const switchResolution = () => {
-          if (!resolutions.length) {
-            alert('No resolutions available to choose from.');
+        const switchResolution = async () => {
+          const supportedResolutions = await getSupportedResolutions();
+          if (!supportedResolutions.length) {
+            Modal.show('No supported resolutions available to choose from.');
             return;
           }
           
-          const resolutionOptions = resolutions.map(res => ({
+          const resolutionOptions = supportedResolutions.map(res => ({
             label: res.label,
             onClick: async () => {
               currentResolution = { width: res.width, height: res.height };
